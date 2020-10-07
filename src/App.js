@@ -5,7 +5,9 @@ import {MenuItem,FormControl,Select, CardContent} from '@material-ui/core'
 import CaseInfo from './components/Information/info.component';
 import MapInfo from './components/Map/map';
 import Table from './components/CasesTable/Table'
-import {sotringData} from './utils';
+import {sotringData,roundingCounts} from './utils';
+import LineGraph from './components/Charts/Line/LineGraph';
+import "leaflet/dist/leaflet.css";
 
 function App() {
 
@@ -13,22 +15,30 @@ function App() {
    const [countries,setCountries] = useState([]);
    // for dropdown default value
    const [country,setCountry] = useState('worldwide');
-   //  for handling informations
+   // for handling informations
    const [caseInfo,setCaseInfo] = useState({});
-   //  for Table data
+   // for Table data
    const [tabledata,setTabledata] = useState([]);
+   // for map location
+   const [mapCenter,setMapCenter] = useState({ lat: 34.80746, lng: -40.4796 });
+   const [mapZoom,setMapZoom] = useState(2);
+   const [mapCountries,setMapCountries] = useState([]);
+  //  caseType state
+   const[casesType,setCasesType] = useState('cases');
+
 
   useEffect(()=>{
     const url = `https://disease.sh/v3/covid-19/all`;
     axios.get(url).then(({data}) => {
-      console.log(data);
+      
       setCaseInfo(data)
-    }).catch(err => console.log(`get all cases data, ${err}`));
+    }).catch(err => console.log(`error at get all countries, ${err}`));
   },[])
 
    useEffect(()=>{
        axios.get('https://disease.sh/v3/covid-19/countries').then(({data})=>{
-         console.log(data)
+         
+         setMapCountries(data);
           const country = data.map(({country,countryInfo})=>({
               name:country,
               value:countryInfo.iso2
@@ -38,19 +48,38 @@ function App() {
           setTabledata(sorted);
           setCountries(country)
 
-       }).catch(err => console.log(`Error at receiving countries, ${err}`));
+       }).catch(err =>  console.log(`error at dropdown countries, ${err}`));
    },[])
 
 
    const countryChange = (e) => {
+     
        const value = e.target.value;
+       console.log(value);
        setCountry(value);
 
-       const url = value === 'worldwide' ? `https://disease.sh/v3/covid-19/all`:`https://disease.sh/v3/covid-19/countries/${value}`
+       if(value === 'worldwide') {
+         setMapCenter({ lat: 34.80746, lng: -40.4796 });
+         setMapZoom(2);
+       }
 
+       const url = value === 'worldwide' ? `https://disease.sh/v3/covid-19/all`:`https://disease.sh/v3/covid-19/countries/${value}`
+      
        axios.get(url).then(({data})=>{
+
+        console.log(value);
+
+        if(value === 'worldwide') {
+          setMapCenter([34.80746,-40.4796]);
+          setMapZoom(2);
+        } else {
+          setMapCenter([data.countryInfo.lat,data.countryInfo.long]);
+          setMapZoom(4);
+        }
+        
         setCaseInfo(data);
-       }).catch(err=>`error at information,${err}`)
+
+       }).catch(err=> console.log(`error at information,${err}`));
    }
 
   return (
@@ -77,33 +106,36 @@ function App() {
 
         <div className="app__stats">
           {/* cases */}
-            <CaseInfo title="CoronaVirus Cases" cases={caseInfo.todayCases} total={caseInfo.active}/>
+            <CaseInfo onClick={e => {setCasesType('cases')}} isRed active={casesType === 'cases'} title="CoronaVirus Cases" cases={roundingCounts(caseInfo.todayCases)} total={roundingCounts(caseInfo.active)}/>
 
           {/* recovered */}
-            <CaseInfo title="Recovered People" cases={caseInfo.todayRecovered} total={caseInfo.recovered}/>
+            <CaseInfo onClick={e => {setCasesType('recovered')}} active={casesType === 'recovered'} title="Recovered People" cases={roundingCounts(caseInfo.todayRecovered)} total={roundingCounts(caseInfo.recovered)}/>
           
           {/* Deaths */}
-            <CaseInfo title="Deaths" cases={caseInfo.todayDeaths} total={caseInfo.deaths}/>
+            <CaseInfo onClick={e => {setCasesType('deaths')}} isRed active={casesType === 'deaths'} title="Deaths" cases={roundingCounts(caseInfo.todayDeaths)} total={roundingCounts(caseInfo.deaths)}/>
         </div>
 
         <div className="app__map">
-          <MapInfo />
+          <MapInfo casesType={casesType} countries={mapCountries} center={mapCenter} zoom={mapZoom} />
         </div>
       
       </div>
 
       
 
-      <div className="app__right">
-          <CardContent>
+      {/* <div className="app__right"> */}
+          <CardContent className="app__right">
             {/* cases table */}
-
+            <h2>Live Cases by Country</h2>
                <Table countries={tabledata}/>
-          
+          <br/>
             {/* Chart.js */}
-            <h1>WorldWide new Cases</h1>
+            <h2>WorldWide new Cases</h2>
+                
+            <LineGraph casesType={casesType} className="app__graph" />
+
           </CardContent>
-      </div>
+      {/* </div> */}
     </div>
   
 
